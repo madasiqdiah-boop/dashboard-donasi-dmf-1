@@ -74,6 +74,10 @@ def unduh_sheet(sheet_id: str, akun_layanan: dict | None = None) -> bytes:
     tidak perlu dibuka untuk umum. Tanpa itu, sheet harus bisa dibuka
     "siapa saja yang punya link".
     """
+    # Terima ID saja atau link lengkap; buang spasi/tanda kutip yang ikut tertempel.
+    sheet_id = str(sheet_id).strip().strip('"\'').strip()
+    if "/d/" in sheet_id:
+        sheet_id = sheet_id.split("/d/", 1)[1].split("/", 1)[0]
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
     if akun_layanan:
         from google.auth.transport.requests import AuthorizedSession
