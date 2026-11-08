@@ -1,0 +1,954 @@
+"""Dashboard Laporan Iklan Interaksi DMF 2 Kabupaten Serang."""
+import pandas as pd
+import streamlit as st
+
+import hmac
+import io
+import os
+from datetime import datetime, timedelta, timezone
+
+from dotenv import load_dotenv
+
+import data_source as ds
+import laporan_pdf
+
+load_dotenv()
+
+st.set_page_config(
+    page_title="Dashboard DMF 2",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# Tampilan rapi di HP: judul kecil, kartu angka 2 per baris, jarak lebih rapat
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+    --pink: #ff4fa3;
+    --mint: #12b886;
+    --biru: #3b82f6;
+    --ungu: #8b5cf6;
+    --teks: #2a1f3d;
+    --teks-pudar: #7a6d8f;
+}
+
+/* ---------- dasar ---------- */
+html, body, .stApp,
+.stApp :is(p, span, div, label, li, a, input, textarea, button):not([data-testid="stIconMaterial"]):not(.material-symbols-rounded) {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.stApp {
+    background: #fff6fa;
+    color: var(--teks);
+}
+[data-testid="stHeader"] { background: transparent; }
+.block-container { padding-top: 2.2rem; padding-bottom: 2rem; }
+
+/* ---------- judul ---------- */
+.judul { display: flex; align-items: center; gap: .6rem; margin: 0 0 .2rem 0; }
+.judul .ikon { font-size: 2rem; }
+.judul .teks {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-weight: 800; font-size: 2.1rem; line-height: 1.1; letter-spacing: -.02em;
+    color: var(--pink);
+}
+.sub { color: var(--teks-pudar); font-size: .9rem; margin-bottom: .4rem; }
+.sub b { color: var(--pink); }
+h2, h3 { font-family: 'Bricolage Grotesque', sans-serif !important; font-weight: 800 !important; color: var(--teks); }
+
+/* ---------- kartu angka ---------- */
+[data-testid="stMetric"] {
+    padding: .8rem 1rem !important; border-radius: 20px !important;
+    border: 1.5px solid transparent !important;
+    box-shadow: 0 8px 24px -12px rgba(80, 40, 120, .35);
+    transition: transform .15s ease;
+}
+[data-testid="stMetric"]:hover { transform: translateY(-2px); }
+[data-testid="stMetric"] > div, [data-testid="stMetricLabel"], [data-testid="stMetricValue"] {
+    padding: 0 !important; margin: 0 !important; min-height: 0 !important;
+}
+[data-testid="stMetricLabel"] p { font-weight: 600; font-size: .8rem; color: var(--teks-pudar); }
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
+    font-family: 'Bricolage Grotesque', sans-serif !important;
+    font-weight: 800; font-size: 1.6rem; color: var(--teks);
+}
+[data-testid="stColumn"]:nth-child(4n+1) [data-testid="stMetric"] { background: #ffe3f0; border-color: #ffb3d6 !important; }
+[data-testid="stColumn"]:nth-child(4n+2) [data-testid="stMetric"] { background: #d8f8ec; border-color: #8fe6c6 !important; }
+[data-testid="stColumn"]:nth-child(4n+3) [data-testid="stMetric"] { background: #e0ebff; border-color: #a9c6ff !important; }
+[data-testid="stColumn"]:nth-child(4n+4) [data-testid="stMetric"] { background: #efe6ff; border-color: #cdb4ff !important; }
+
+/* ---------- tab ---------- */
+[data-baseweb="tab-list"], [data-testid="stTabs"] [role="tablist"] {
+    gap: .4rem; background: white; padding: .3rem;
+    border-radius: 999px; width: fit-content;
+}
+[data-baseweb="tab-highlight"], [data-baseweb="tab-border"],
+[data-testid="stTabs"] [role="tablist"] > div:not([role="tab"]) { display: none !important; }
+[data-testid="stTabs"] [role="tab"], button[data-baseweb="tab"] { border: none !important; border-radius: 999px !important; padding: .35rem 1rem !important; height: auto !important; }
+[data-testid="stTabs"] [role="tab"] p { font-weight: 600; }
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] { background: var(--pink); }
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] p { color: white !important; }
+
+/* ---------- tombol & menu ---------- */
+.stButton button, .stFormSubmitButton button {
+    border-radius: 999px !important; font-weight: 700 !important;
+    border: 1.5px solid #ffc2df !important; background: white !important; color: var(--pink) !important;
+}
+.stButton button:hover { border-color: var(--pink) !important; }
+.stFormSubmitButton button, .stButton button[kind="primary"] {
+    background: var(--pink) !important;
+    color: white !important; border: none !important;
+}
+.stFormSubmitButton button p, .stButton button[kind="primary"] p { color: white !important; }
+[data-testid="stButtonGroup"] button { border-radius: 999px !important; font-weight: 600 !important; background: rgba(255,255,255,.8); }
+[data-testid="stButtonGroup"] button[kind*="Active"] {
+    background: var(--mint) !important;
+    border-color: transparent !important;
+}
+[data-testid="stButtonGroup"] button[kind*="Active"] p { color: white !important; }
+
+/* ---------- input, tabel, kotak ---------- */
+[data-baseweb="select"] > div, [data-baseweb="input"], [data-baseweb="base-input"] {
+    border-radius: 14px !important; background: rgba(255,255,255,.9) !important;
+}
+[data-testid="stSelectbox"] { max-width: 320px; }
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] {
+    background: white; border-radius: 18px; padding: .35rem;
+    box-shadow: 0 10px 30px -18px rgba(80, 40, 120, .45);
+}
+[data-testid="stForm"], [data-testid="stExpander"] details {
+    background: rgba(255,255,255,.75); border-radius: 20px !important; border: 1.5px solid #f3d6ea !important;
+}
+[data-testid="stAlert"] { border-radius: 16px; }
+
+/* Halaman login di tengah */
+.st-key-kotak_login { max-width: 420px; margin: 0 auto; }
+
+/* Jangan pudarkan tampilan saat update otomatis tiap menit */
+[data-stale="true"], .stale-element { opacity: 1 !important; transition: none !important; }
+
+/* ---------- HP ---------- */
+@media (max-width: 640px) {
+    .block-container { padding: 2.6rem .8rem 2rem .8rem; }
+    .judul .teks { font-size: 1.5rem; }
+    .judul .ikon { font-size: 1.5rem; }
+    [data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: .5rem !important; }
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+        flex: 1 1 calc(50% - .5rem) !important; min-width: calc(50% - .5rem) !important; width: calc(50% - .5rem) !important;
+    }
+    [data-testid="stMetric"] { padding: .55rem .7rem !important; border-radius: 16px !important; }
+    [data-testid="stSelectbox"] { max-width: none; }
+    .st-key-periode [data-testid="stColumn"] { flex: 1 1 100% !important; min-width: 100% !important; width: 100% !important; }
+    [data-testid="stMetricLabel"] p { font-size: .72rem; }
+    [data-testid="stMetricValue"], [data-testid="stMetricValue"] div { font-size: 1.1rem; }
+    [data-testid="stTabs"] [role="tablist"] { width: 100%; justify-content: space-between; gap: .1rem; padding: .25rem; }
+    [data-testid="stTabs"] [role="tab"] { padding: .3rem .55rem !important; }
+    [data-testid="stTabs"] [role="tab"] p { font-size: .76rem; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# ATURAN REKOMENDASI SCALE UP (bisa diubah)
+# =========================================================
+
+SCALE_UP_MIN_ROAS = 1.5          # donasi minimal 1,5x biaya iklan
+SCALE_UP_MIN_CLOSING = 10        # closing rate minimal 10%
+SCALE_UP_MIN_NOMOR = 30          # data cukup: minimal 30 nomor
+EVALUASI_MAX_ROAS = 1.0          # di bawah 1 = rugi
+
+BULAN_ID = [
+    "", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli",
+    "Agustus", "September", "Oktober", "November", "Desember",
+]
+
+
+# =========================================================
+# FORMAT ANGKA
+# =========================================================
+
+def nama_bulan(kode):
+    tahun, bulan = kode.split("-")
+    return f"{BULAN_ID[int(bulan)]} {tahun}"
+
+
+def kosong(x):
+    return isinstance(x, str) or pd.isna(x)
+
+
+def rupiah(x):
+    if kosong(x):
+        return "–"
+    tanda = "-" if x < 0 else ""
+    return f"{tanda}{abs(round(x)):,.0f}".replace(",", ".")
+
+
+def angka(x):
+    if kosong(x):
+        return "–"
+    return f"{x:,.0f}".replace(",", ".")
+
+
+def desimal(x):
+    if kosong(x):
+        return "–"
+    return f"{x:.1f}".replace(".", ",")
+
+
+# =========================================================
+# HITUNGAN
+# =========================================================
+
+def rekomendasi(row):
+    if row["biaya_iklan"] <= 0:
+        return "–"
+    if row["roas"] < EVALUASI_MAX_ROAS:
+        return "🔴 Evaluasi"
+    if (
+        row["roas"] >= SCALE_UP_MIN_ROAS
+        and row["closing_rate"] >= SCALE_UP_MIN_CLOSING
+        and row["nomor"] >= SCALE_UP_MIN_NOMOR
+    ):
+        return "🟢 Layak Scale Up"
+    return "🟡 Pertahankan"
+
+
+def hitung(df):
+    df = df.copy()
+    df["cpr"] = df["biaya_iklan"] / df["nomor"].where(df["nomor"] > 0)
+    df["all_resi"] = df["perdana"] + df["gulungan"]
+    df["total_donasi"] = df["donasi_perdana"] + df["donasi_gulungan"]
+    df["roas"] = df["donasi_perdana"] / df["biaya_iklan"].where(df["biaya_iklan"] > 0)
+    df["closing_rate"] = df["perdana"] / df["nomor"].where(df["nomor"] > 0) * 100
+    df["profit"] = df["total_donasi"] - df["biaya_iklan"]
+    df["rekomendasi"] = df.apply(rekomendasi, axis=1)
+    if "status_campaign" not in df:
+        df["status_campaign"] = "⏳ Menunggu"
+    return df
+
+
+def baris_total(df):
+    t = df[[
+        "nomor", "biaya_iklan", "perdana", "gulungan",
+        "donasi_perdana", "donasi_gulungan",
+    ]].sum()
+    total = pd.DataFrame([t])
+    total["nama"] = "Jumlah"
+    total = hitung(total)
+    total["rekomendasi"] = ""
+    total["status_campaign"] = ""
+    return total
+
+
+KOLOM_RESI = ["perdana", "gulungan", "donasi_perdana", "donasi_gulungan"]
+KOLOM_PERFORMA = ["nomor", "biaya_iklan", *KOLOM_RESI]
+
+
+def data_rentang(mulai, akhir, performa, cs, meta_rentang=None):
+    """Daftar CS aktif + biaya & nomor dari Meta (angka rentang, sama dengan
+    Ads Manager) + resi & donasi dari sheet (dijumlah) untuk rentang tanggal."""
+    aktif = cs[cs["aktif"]][["nama"]]
+    pilih = performa[performa["tanggal"].between(pd.Timestamp(mulai), pd.Timestamp(akhir))]
+    resi = pilih.groupby("nama", as_index=False)[KOLOM_RESI].sum()
+    if meta_rentang is None:
+        meta_rentang = pd.DataFrame(columns=["nama", "biaya_iklan", "nomor"])
+    df = aktif.merge(meta_rentang, on="nama", how="left").merge(resi, on="nama", how="left")
+    for kolom in KOLOM_PERFORMA:
+        if kolom not in df:
+            df[kolom] = 0
+    df[KOLOM_PERFORMA] = df[KOLOM_PERFORMA].fillna(0)
+    return hitung(df)
+
+
+# =========================================================
+# AMBIL DATA DARI GOOGLE SHEET
+# =========================================================
+
+def rahasia(kunci):
+    try:
+        nilai = st.secrets.get(kunci)
+    except Exception:
+        nilai = None
+    return nilai or os.environ.get(kunci)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def ambil_sheet(sheet_id):
+    akun = rahasia("gcp_service_account")
+    isi = ds.unduh_sheet(sheet_id, dict(akun) if akun else None)
+    return isi, datetime.now(timezone(timedelta(hours=7)))
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def ambil_status(cs_csv):
+    """{nama CS: jumlah iklan aktif}, atau None kalau Meta belum tersambung.
+    Diambil ulang tiap 2 jam supaya tidak cepat kena batas permintaan Meta."""
+    token = rahasia("META_ACCESS_TOKEN")
+    akun = rahasia("META_AD_ACCOUNT_IDS")
+    if not token or not akun:
+        return None
+    cs = pd.read_json(io.StringIO(cs_csv))
+    return ds.status_campaign(token, str(akun).split(","), cs)
+
+
+@st.cache_resource
+def status_terakhir():
+    """Status campaign terakhir yang berhasil + jam gagal terakhir."""
+    return {"data": None, "jam": None, "gagal": None}
+
+
+def status_aman(cs_json):
+    """Hasil: (status, peringatan). Kalau Meta menolak, pakai status terakhir
+    dan jangan coba lagi selama 15 menit (supaya batas permintaan Meta pulih)."""
+    simpan = status_terakhir()
+    sekarang = waktu_sekarang()
+    if simpan["gagal"] and sekarang - simpan["gagal"] < timedelta(minutes=15):
+        alasan = "Meta sedang membatasi permintaan"
+    else:
+        try:
+            status = ambil_status(cs_json)
+        except Exception as e:
+            simpan["gagal"] = sekarang
+            alasan = str(e)
+        else:
+            simpan.update(data=status, jam=sekarang, gagal=None)
+            return status, None
+    if simpan["data"] is None:
+        return None, f"Status campaign Meta belum bisa diambil ({alasan})."
+    return simpan["data"], f"Status campaign dari data jam {simpan['jam']:%H:%M} WIB ({alasan})."
+
+
+def _meta_rentang(mulai, akhir, cs_json):
+    token = rahasia("META_ACCESS_TOKEN")
+    if not token:
+        return None
+    cs = pd.read_json(io.StringIO(cs_json))
+    return ds.iklan_meta_rentang(token, f"{mulai:%Y-%m-%d}", f"{akhir:%Y-%m-%d}", cs)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def ambil_meta_rentang_live(mulai, akhir, cs_json):
+    """Rentang yang memuat hari ini: diambil ulang tiap menit."""
+    return _meta_rentang(mulai, akhir, cs_json)
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def ambil_meta_rentang_lama(mulai, akhir, cs_json):
+    """Rentang yang sudah lewat (misal bulan lalu): angkanya hampir tidak
+    berubah, cukup diambil ulang tiap 6 jam."""
+    return _meta_rentang(mulai, akhir, cs_json)
+
+
+@st.cache_resource
+def meta_terakhir():
+    """{(mulai, akhir): (data, jam)} data Meta terakhir yang berhasil diambil,
+    dipakai kalau Meta sedang menolak (batas permintaan)."""
+    return {}
+
+
+def ambil_meta_rentang(mulai, akhir, cs_json):
+    """Biaya & hasil per CS untuk rentang terpilih, langsung dari Meta (= Ads Manager).
+
+    Hasil: (data, peringatan). Kalau Meta gagal, pakai data terakhir yang berhasil.
+    """
+    live = akhir >= waktu_sekarang().date()
+    ambil = ambil_meta_rentang_live if live else ambil_meta_rentang_lama
+    try:
+        data = ambil(mulai, akhir, cs_json)
+    except Exception as e:
+        lama = meta_terakhir().get((mulai, akhir))
+        if lama is None:
+            return None, f"Biaya iklan dari Meta belum bisa diambil: {e}"
+        return lama[0], f"Meta sedang menolak ({e}), pakai data Meta terakhir jam {lama[1]:%H:%M} WIB."
+    if data is not None:
+        meta_terakhir()[(mulai, akhir)] = (data, waktu_sekarang())
+    return data, None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def ambil_saldo_akun():
+    """Batas pengeluaran & sisa akun iklan HKM 2 (dari Meta)."""
+    token, akun = rahasia("META_ACCESS_TOKEN"), rahasia("META_AKUN_HKM2")
+    if not token or not akun:
+        return None
+    return ds.saldo_akun(token, akun)
+
+
+def tampilkan_saldo_akun():
+    try:
+        s = ambil_saldo_akun()
+    except Exception as e:
+        st.caption(f"Sisa dana akun iklan tidak bisa diambil: {e}")
+        return
+    if not s:
+        return
+    with st.container(key="saldo_akun"):
+        k1, k2, k3 = st.columns(3)
+        k1.metric(f"💳 Sisa Dana Akun {s['nama']}",
+                  "Tanpa batas" if s["sisa"] is None else f"Rp {rupiah(s['sisa'])}", border=True)
+        k2.metric("Batas pengeluaran / terpakai",
+                  "-" if s["batas"] is None else f"Rp {rupiah(s['batas'])} / {rupiah(s['terpakai'])}", border=True)
+        k3.metric("Tagihan berjalan", f"Rp {rupiah(s['tagihan'])}", border=True)
+    if s["sisa"] is not None and s["sisa"] < 2_000_000:
+        st.warning("Sisa dana akun iklan tinggal sedikit. Kalau habis, SEMUA iklan di akun ini berhenti. "
+                   "Naikkan atau reset batas pengeluaran di Meta (Penagihan & pembayaran).", icon="⚠️")
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def olah_sheet(isi_xlsx, isi_recap, cs_json):
+    return ds.siapkan(isi_xlsx, pd.read_json(io.StringIO(cs_json)), isi_recap)
+
+
+def waktu_sekarang():
+    return datetime.now(timezone(timedelta(hours=7)))
+
+
+def muat_data(cs):
+    """Ambil & gabungkan semua sumber. Hasil dict; peringatan dikumpulkan."""
+    peringatan = []
+    sheet_id = rahasia("SHEET_ID")
+    isi_xlsx, _ = ambil_sheet(sheet_id)
+
+    isi_recap = None
+    recap_id = rahasia("SHEET_DONASI_ID")
+    if recap_id:
+        try:
+            isi_recap, _ = ambil_sheet(recap_id)
+        except Exception as e:
+            peringatan.append(f"Sheet donasi (RECAP) tidak bisa diambil, pakai Rekap Admin: {e}")
+
+    cs_json = cs.to_json()
+    performa, dana, tak_dikenal = olah_sheet(isi_xlsx, isi_recap, cs_json)
+
+    return {
+        "sheet_id": sheet_id, "isi_xlsx": isi_xlsx, "performa": performa,
+        "dana": dana, "tak_dikenal": tak_dikenal, "peringatan": peringatan,
+    }
+
+
+PILIHAN_TANGGAL = ["Bulan ini", "Bulan lalu", "7 hari terakhir", "Hari ini", "Kemarin", "Pilih tanggal"]
+
+
+def pilih_tanggal(hari_ini):
+    """Pilihan cepat atau rentang bebas. Hasil: (mulai, akhir) berupa date."""
+    awal_bulan = hari_ini.replace(day=1)
+    akhir_bulan_lalu = awal_bulan - timedelta(days=1)
+    rentang = {
+        "Bulan ini": (awal_bulan, hari_ini),
+        "Bulan lalu": (akhir_bulan_lalu.replace(day=1), akhir_bulan_lalu),
+        "7 hari terakhir": (hari_ini - timedelta(days=6), hari_ini),
+        "Hari ini": (hari_ini, hari_ini),
+        "Kemarin": (hari_ini - timedelta(days=1), hari_ini - timedelta(days=1)),
+    }
+    c1, c2 = st.container(key="periode").columns(2)
+    pilihan = c1.selectbox("Periode", PILIHAN_TANGGAL)
+    if pilihan in rentang:
+        mulai, akhir = rentang[pilihan]
+        c2.date_input("Tanggal", value=(mulai, akhir), format="DD/MM/YYYY", disabled=True)
+    else:
+        nilai = c2.date_input(
+            "Tanggal", value=(awal_bulan, hari_ini), format="DD/MM/YYYY", max_value=hari_ini,
+        )
+        mulai, akhir = (nilai[0], nilai[-1]) if isinstance(nilai, tuple) and nilai else (nilai, nilai)
+    return mulai, akhir
+
+
+def pasang_status(df, status):
+    df = df.copy()
+    if status is None:
+        df["status_campaign"] = "–"
+    else:
+        df["status_campaign"] = df["nama"].map(
+            lambda n: f"🟢 Nyala ({status[n]} iklan)" if n in status else "⚫ Mati"
+        )
+    return df
+
+
+# =========================================================
+# AKSES ADMIN
+# =========================================================
+
+def password_admin():
+    return rahasia("ADMIN_PASSWORD")
+
+
+def is_admin():
+    pw = password_admin()
+    if not pw:
+        # Belum ada password (mode lokal): edit dibuka
+        return True
+    return st.session_state.get("admin_ok", False)
+
+
+def form_login():
+    st.info("Menu ini khusus admin. Masukkan password untuk mengedit.", icon="🔒")
+    with st.form("login"):
+        pw = st.text_input("Password admin", type="password")
+        if st.form_submit_button("Masuk"):
+            if pw == password_admin():
+                st.session_state["admin_ok"] = True
+                st.rerun()
+            else:
+                st.error("Password salah.")
+
+
+# =========================================================
+# HALAMAN: LAPORAN
+# =========================================================
+
+FORMAT_KOLOM = {
+    "Nomor": angka, "All Resi": angka, "Resi Perdana": angka, "Resi Gulungan": angka,
+    "Biaya Iklan": rupiah, "Modal Iklan": rupiah, "Akumulasi Profit": rupiah,
+    "Sisa Iklan": rupiah, "CPR": rupiah, "Donasi Perdana (Rp)": rupiah,
+    "Donasi Gulungan (Rp)": rupiah, "Profit / Loss": rupiah, "ROAS": desimal,
+    "Closing Rate (%)": desimal, "Total Topup": rupiah,
+    "Bagi Hasil 25%": rupiah, "Total Donasi": rupiah,
+}
+KOLOM_TEKS = ("Nama", "Campaign Hari Ini", "Rekomendasi")
+
+
+def tampilkan_tabel(df, kolom, warna_kolom=(), pakai_total=True):
+    """Tabel per CS dengan format rupiah, warna minus, dan baris Jumlah."""
+    if pakai_total:
+        tabel = pd.concat([df, baris_total(df)], ignore_index=True)
+    else:
+        tabel = df.reset_index(drop=True)
+
+    kolom = {"nama": "Nama", **kolom}
+    tabel = tabel[list(kolom)].rename(columns=kolom)
+    angka_kolom = [k for k in tabel.columns if k not in KOLOM_TEKS]
+    nilai = tabel[angka_kolom].apply(pd.to_numeric, errors="coerce")
+
+    # Semua sel ditampilkan sebagai teks yang sudah diformat (kosong = "–"),
+    # warna diambil dari nilai angkanya.
+    tampil = tabel.copy()
+    for k in angka_kolom:
+        tampil[k] = nilai[k].map(FORMAT_KOLOM.get(k, angka))
+    tampil = tampil.fillna("–").astype(str)
+
+    def gaya(_):
+        hasil = pd.DataFrame("", index=tampil.index, columns=tampil.columns)
+        for k in warna_kolom:
+            hasil[k] = nilai[k].map(
+                lambda v: "" if pd.isna(v)
+                else ("color: #c62828; font-weight: 600" if v < 0 else "color: #2e7d32")
+            )
+        total = tampil["Nama"] == "Jumlah"
+        hasil.loc[total, :] = hasil.loc[total, :] + "; font-weight: 700; background-color: rgba(128,128,128,0.15)"
+        return hasil
+
+    styled = tampil.style.apply(gaya, axis=None)
+    kanan = {k: st.column_config.TextColumn(k, alignment="right") for k in angka_kolom}
+
+    st.dataframe(
+        styled,
+        hide_index=True,
+        width="stretch",
+        height=35 * (len(tabel) + 1) + 3,
+        column_config={
+            **kanan,
+            "Nama": st.column_config.Column(pinned=True),
+        },
+    )
+
+
+def tab_laporan(df, total):
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Biaya Iklan", f"Rp {rupiah(total['biaya_iklan'])}", border=True)
+    k2.metric("Nomor Masuk", angka(total["nomor"]), border=True)
+    k3.metric("CPR", f"Rp {rupiah(total['cpr'])}", border=True)
+    k4.metric("All Resi", angka(total["all_resi"]), border=True)
+
+    k5, k6, k7, k8 = st.columns(4)
+    k5.metric("Total Donasi", f"Rp {rupiah(total['total_donasi'])}", border=True)
+    k6.metric("Profit / Loss", f"Rp {rupiah(total['profit'])}", border=True)
+    k7.metric("ROAS", desimal(total["roas"]), border=True)
+    k8.metric("Closing Rate", f"{desimal(total['closing_rate'])}%", border=True)
+
+    tampilkan_tabel(
+        df,
+        {
+            "nomor": "Nomor",
+            "biaya_iklan": "Biaya Iklan",
+            "cpr": "CPR",
+            "all_resi": "All Resi",
+            "perdana": "Resi Perdana",
+            "gulungan": "Resi Gulungan",
+            "roas": "ROAS",
+            "closing_rate": "Closing Rate (%)",
+            "donasi_perdana": "Donasi Perdana (Rp)",
+            "donasi_gulungan": "Donasi Gulungan (Rp)",
+            "profit": "Profit / Loss",
+        },
+        warna_kolom=["Profit / Loss"],
+    )
+
+    with st.expander("Cara hitung"):
+        st.markdown("""
+- **CPR** = Biaya Iklan ÷ Nomor
+- **All Resi** = Perdana + Gulungan
+- **ROAS** = Donasi Perdana ÷ Biaya Iklan
+- **Closing Rate** = Perdana ÷ Nomor × 100
+- **Profit / Loss** = Donasi Perdana + Donasi Gulungan − Biaya Iklan
+""")
+
+
+def tab_jatah(dana, cs):
+    aktif = cs[cs["aktif"]][["nama"]]
+    df = aktif.merge(dana, on="nama", how="left")
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Total Modal Iklan", f"Rp {rupiah(df['modal_iklan'].sum())}", border=True)
+    k2.metric("Akumulasi Profit", f"Rp {rupiah(df['akumulasi'].sum())}", border=True)
+    k3.metric("Total Sisa Iklan", f"Rp {rupiah(df['sisa_iklan'].sum())}", border=True)
+    minus = int((df["sisa_iklan"] < 0).sum())
+    k4.metric("CS Sisa Minus", f"{minus} CS", border=True)
+
+    tampilkan_tabel(
+        df.sort_values("sisa_iklan"),
+        {
+            "modal_iklan": "Modal Iklan",
+            "akumulasi": "Akumulasi Profit",
+            "sisa_iklan": "Sisa Iklan",
+        },
+        warna_kolom=["Akumulasi Profit", "Sisa Iklan"],
+        pakai_total=False,
+    )
+    st.caption(
+        "Akumulasi semua bulan, dari sheet **Dana Iklan**. Sisa Iklan = kolom "
+        "Keterangan (merah = modal sudah habis/minus)."
+    )
+
+
+URUTAN_REKOMENDASI = {"🟢 Layak Scale Up": 0, "🟡 Pertahankan": 1, "🔴 Evaluasi": 2, "–": 3}
+
+
+def tab_rekomendasi(df):
+    jumlah = df["rekomendasi"].value_counts()
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("🟢 Layak Scale Up", f"{jumlah.get('🟢 Layak Scale Up', 0)} CS", border=True)
+    k2.metric("🟡 Pertahankan", f"{jumlah.get('🟡 Pertahankan', 0)} CS", border=True)
+    k3.metric("🔴 Evaluasi", f"{jumlah.get('🔴 Evaluasi', 0)} CS", border=True)
+    nyala = int(df["status_campaign"].str.contains("Nyala").sum())
+    k4.metric("Campaign Nyala Hari Ini", f"{nyala} CS", border=True)
+
+    urut = df.assign(_u=df["rekomendasi"].map(URUTAN_REKOMENDASI)).sort_values(
+        ["_u", "roas"], ascending=[True, False],
+    )
+    tampilkan_tabel(
+        urut,
+        {
+            "status_campaign": "Campaign Hari Ini",
+            "rekomendasi": "Rekomendasi",
+            "roas": "ROAS",
+            "closing_rate": "Closing Rate (%)",
+            "nomor": "Nomor",
+            "cpr": "CPR",
+            "biaya_iklan": "Biaya Iklan",
+            "profit": "Profit / Loss",
+        },
+        warna_kolom=["Profit / Loss"],
+        pakai_total=False,
+    )
+
+    st.markdown(f"""
+**Aturan rekomendasi:**
+- 🟢 **Layak Scale Up**: ROAS ≥ {desimal(SCALE_UP_MIN_ROAS)}, Closing Rate ≥ {SCALE_UP_MIN_CLOSING}%, dan Nomor ≥ {SCALE_UP_MIN_NOMOR}
+- 🔴 **Evaluasi**: ROAS < {desimal(EVALUASI_MAX_ROAS)} (donasi perdana belum menutup biaya iklan)
+- 🟡 **Pertahankan**: di antara keduanya
+""")
+
+
+def halaman_laporan(mulai, akhir, performa, dana, cs, status, meta_rentang=None):
+    df = pasang_status(data_rentang(mulai, akhir, performa, cs, meta_rentang), status)
+    total = baris_total(df).iloc[0]
+
+    try:
+        isi_pdf = laporan_pdf.buat_pdf(df, total, mulai, akhir)
+    except Exception as e:
+        st.caption(f"PDF belum bisa dibuat: {e}")
+    else:
+        nama_file = f"Laporan DMF 2 {mulai:%d-%m-%Y}" + ("" if mulai == akhir else f" sd {akhir:%d-%m-%Y}") + ".pdf"
+        st.download_button("📄 Unduh PDF", data=isi_pdf, file_name=nama_file, mime="application/pdf")
+
+    t1, t2, t3 = st.tabs(["📋 Laporan", "💰 Jatah & Sisa", "🚀 Rekomendasi"])
+    with t1:
+        tab_laporan(df, total)
+    with t2:
+        tab_jatah(dana, cs)
+    with t3:
+        tab_rekomendasi(df)
+
+
+# =========================================================
+# HALAMAN: KELOLA CS
+# =========================================================
+
+PERSEN_BAGI_HASIL = 0.25
+
+
+def bagian_bagi_hasil(cs, performa):
+    """Bagi hasil 25% dari profit per CS untuk satu bulan."""
+    st.markdown(f"#### 💰 Bagi Hasil {PERSEN_BAGI_HASIL:.0%} dari Profit")
+    hari_ini = waktu_sekarang().date()
+    daftar = []
+    t = hari_ini.replace(day=1)
+    while t >= datetime(2026, 5, 1).date():
+        daftar.append(t)
+        t = (t - timedelta(days=1)).replace(day=1)
+    awal = st.selectbox("Bulan", daftar, format_func=lambda d: nama_bulan(f"{d:%Y-%m}"), key="bulan_bagi_hasil")
+    akhir_bulan = (awal.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    akhir = min(akhir_bulan, hari_ini)
+
+    meta_rentang, pesan = ambil_meta_rentang(awal, akhir, cs.to_json())
+    if pesan:
+        st.warning(pesan, icon="⚠️")
+    df = data_rentang(awal, akhir, performa, cs, meta_rentang)
+    df["bagi_hasil"] = df["profit"].clip(lower=0) * PERSEN_BAGI_HASIL
+    df = df.sort_values("bagi_hasil", ascending=False)
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Total Profit", f"Rp {rupiah(df['profit'].sum())}", border=True)
+    k2.metric(f"Total Bagi Hasil {PERSEN_BAGI_HASIL:.0%}", f"Rp {rupiah(df['bagi_hasil'].sum())}", border=True)
+    k3.metric("CS dapat bagi hasil", f"{int((df['bagi_hasil'] > 0).sum())} CS", border=True)
+    tampilkan_tabel(
+        df,
+        {"biaya_iklan": "Biaya Iklan", "total_donasi": "Total Donasi", "profit": "Profit / Loss",
+         "bagi_hasil": f"Bagi Hasil {PERSEN_BAGI_HASIL:.0%}"},
+        warna_kolom=["Profit / Loss"], pakai_total=False,
+    )
+    st.caption(
+        f"Periode {awal:%d/%m/%Y} - {akhir:%d/%m/%Y}. Bagi hasil = {PERSEN_BAGI_HASIL:.0%} x Profit "
+        "(Donasi Perdana + Gulungan - Biaya Iklan). Profit minus = Rp 0."
+    )
+
+
+def halaman_kelola(cs, tak_dikenal, performa=None):
+    st.subheader("⚙️ Kelola CS")
+
+    if not is_admin():
+        form_login()
+        return
+
+    st.caption(
+        "**Tambah CS**: klik baris kosong paling bawah. **Hapus CS**: centang kotak "
+        "di kiri baris lalu tekan 🗑️. **Nonaktifkan**: hilangkan centang Aktif "
+        "(disembunyikan dari laporan). **Nama lain**: tulisan nama CS yang berbeda "
+        "di sheet (misal TRISMAN untuk Trisna), pisahkan dengan koma."
+    )
+    if tak_dikenal:
+        st.warning(
+            "Nama di sheet yang belum cocok dengan CS mana pun (datanya tidak "
+            f"dihitung): **{', '.join(tak_dikenal)}**. Tambahkan sebagai CS baru "
+            "atau sebagai nama lain dari CS yang ada.",
+            icon="⚠️",
+        )
+
+    edit = st.data_editor(
+        cs,
+        num_rows="dynamic",
+        hide_index=True,
+        height=35 * (len(cs) + 2) + 3,
+        width="stretch",
+        column_config={
+            "nama": st.column_config.TextColumn("Nama CS", required=True),
+            "aktif": st.column_config.CheckboxColumn("Aktif", default=True),
+            "nama_lain": st.column_config.TextColumn("Nama lain di sheet (pisah koma)"),
+        },
+        key="editor_cs",
+    )
+
+    if st.button("💾 Simpan perubahan", type="primary"):
+        ds.save_cs(edit)
+        st.success("Tersimpan.")
+        st.rerun()
+
+    if performa is not None:
+        st.divider()
+        bagian_bagi_hasil(cs, performa)
+
+
+# =========================================================
+# HALAMAN: TOPUP IKLAN
+# =========================================================
+
+def halaman_topup(cs, isi_xlsx, sheet_id):
+    st.subheader("💳 Topup Iklan")
+
+    if not is_admin():
+        form_login()
+        return
+
+    akun = rahasia("gcp_service_account")
+    akun = dict(akun) if akun else None
+    if not akun:
+        st.warning(
+            "Akun layanan Google belum diatur: topup disimpan **sementara di server "
+            "dashboard** (bisa hilang saat server restart). Setelah diatur, topup "
+            "otomatis tersimpan di tab **Topup Iklan** di Google Sheet.",
+            icon="⚠️",
+        )
+
+    daftar_cs = cs[cs["aktif"]]["nama"].tolist()
+    hari_ini = datetime.now(timezone(timedelta(hours=7))).date()
+
+    with st.form("form_topup", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        tanggal = c1.date_input("Tanggal topup", value=hari_ini, format="DD/MM/YYYY")
+        nama = c2.selectbox("Nama CS", daftar_cs, index=None, placeholder="Pilih CS")
+        nominal = st.number_input("Nominal (Rp)", min_value=0, step=50000, value=0)
+        kirim = st.form_submit_button("💾 Simpan topup", type="primary", width="stretch")
+
+    if kirim:
+        if not nama:
+            st.error("Pilih nama CS dulu.")
+        elif nominal <= 0:
+            st.error("Nominal harus lebih dari 0.")
+        else:
+            try:
+                tempat = ds.simpan_topup(
+                    {"tanggal": tanggal, "nama": nama, "nominal": nominal},
+                    sheet_id, akun,
+                )
+            except Exception as e:
+                st.error(f"Gagal menyimpan topup: {e}")
+            else:
+                ambil_sheet.clear()
+                st.session_state["topup_ok"] = (
+                    f"Topup **{nama}** Rp {rupiah(nominal)} tanggal {tanggal:%d/%m/%Y} tersimpan"
+                    + (" di Google Sheet." if tempat == "sheet" else " (sementara).")
+                )
+                st.rerun()
+
+    if st.session_state.get("topup_ok"):
+        st.success(st.session_state.pop("topup_ok"), icon="✅")
+
+    riwayat = ds.baca_topup(isi_xlsx, dari_sheet=bool(akun))
+    if riwayat.empty:
+        st.caption("Belum ada topup yang diinput lewat dashboard.")
+        return
+
+    daftar_bulan = sorted(riwayat["bulan"].dropna().unique(), reverse=True)
+    bulan = st.selectbox("Riwayat bulan", daftar_bulan, format_func=nama_bulan, key="bulan_topup")
+    data = riwayat[riwayat["bulan"] == bulan]
+
+    k1, k2 = st.columns(2)
+    k1.metric("Total topup", f"Rp {rupiah(data['nominal'].sum())}", border=True)
+    k2.metric("Jumlah transaksi", f"{len(data)}x", border=True)
+
+    per_cs = data.groupby("nama", as_index=False)["nominal"].sum().sort_values("nominal", ascending=False)
+    st.markdown("**Total per CS**")
+    tampilkan_tabel(per_cs, {"nominal": "Total Topup"}, pakai_total=False)
+
+    st.markdown("**Riwayat**")
+    daftar = data.sort_values(["tanggal", "diinput"], ascending=False).copy()
+    daftar["tanggal"] = daftar["tanggal"].dt.strftime("%d/%m/%Y")
+    daftar["nominal"] = daftar["nominal"].map(rupiah)
+    st.dataframe(
+        daftar[["tanggal", "nama", "nominal"]].rename(columns={
+            "tanggal": "Tanggal", "nama": "Nama CS", "nominal": "Nominal",
+        }),
+        hide_index=True, width="stretch",
+        column_config={"Nominal": st.column_config.TextColumn("Nominal", alignment="right")},
+    )
+
+
+# =========================================================
+# MAIN
+# =========================================================
+
+# =========================================================
+# LOGIN
+# =========================================================
+
+def halaman_login():
+    """Minta username & password (dari Secrets LOGIN_USER / LOGIN_PASSWORD)."""
+    user, sandi = rahasia("LOGIN_USER"), rahasia("LOGIN_PASSWORD")
+    if not user or not sandi or st.session_state.get("login_ok"):
+        return
+
+    with st.container(key="kotak_login"):
+        st.markdown(
+            '<div class="judul" style="justify-content:center;margin-top:3rem">'
+            '<span class="ikon">📊</span><span class="teks">Dashboard DMF 2</span></div>'
+            '<div class="sub" style="text-align:center">Masuk dulu untuk lihat laporan ✨</div>',
+            unsafe_allow_html=True,
+        )
+        with st.form("form_login"):
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            masuk = st.form_submit_button("Masuk", type="primary", width="stretch")
+        if masuk:
+            if hmac.compare_digest(u.strip(), str(user)) and hmac.compare_digest(p, str(sandi)):
+                st.session_state["login_ok"] = True
+                st.rerun()
+            else:
+                st.error("Username atau password salah.")
+    st.stop()
+
+
+halaman_login()
+
+st.markdown(
+    '<div class="judul"><span class="ikon">📊</span>'
+    '<span class="teks">Laporan Iklan DMF 2</span></div>',
+    unsafe_allow_html=True,
+)
+
+if not rahasia("SHEET_ID"):
+    st.error("SHEET_ID belum diatur di Secrets.")
+    st.stop()
+
+info, tombol = st.columns([3, 1], vertical_alignment="center")
+info.markdown(
+    '<div class="sub">Interaksi · Kabupaten Serang · <b>live</b> update tiap 1 menit ✨</div>',
+    unsafe_allow_html=True,
+)
+if tombol.button("🔄 Muat ulang", width="stretch"):
+    st.cache_data.clear()
+    st.rerun()
+
+menu = st.segmented_control(
+    "Menu", ["📊 Laporan", "💳 Topup Iklan", "⚙️ Kelola CS"], default="📊 Laporan",
+    label_visibility="collapsed",
+) or "📊 Laporan"
+
+cs = ds.load_cs()
+
+
+@st.fragment(run_every=60)
+def laporan_live(mulai, akhir, cs):
+    """Bagian laporan yang menyegarkan diri tiap 60 detik."""
+    try:
+        data = muat_data(cs)
+    except Exception as e:
+        st.error(f"Gagal mengambil data dari Google Sheet: {e}")
+        return
+    for pesan in data["peringatan"]:
+        st.warning(pesan, icon="⚠️")
+    status, pesan = status_aman(cs.to_json())
+    if pesan:
+        st.warning(pesan, icon="⚠️")
+    meta_rentang, pesan = ambil_meta_rentang(mulai, akhir, cs.to_json())
+    if pesan:
+        st.warning(pesan, icon="⚠️")
+    st.caption(f"🟢 Diperbarui {waktu_sekarang():%H:%M:%S} WIB")
+    halaman_laporan(mulai, akhir, data["performa"], data["dana"], cs, status, meta_rentang)
+
+
+if menu == "📊 Laporan":
+    mulai, akhir = pilih_tanggal(waktu_sekarang().date())
+    laporan_live(mulai, akhir, cs)
+else:
+    try:
+        data = muat_data(cs)
+    except Exception as e:
+        st.error(f"Gagal mengambil data dari Google Sheet: {e}")
+        st.stop()
+    if menu == "💳 Topup Iklan":
+        halaman_topup(cs, data["isi_xlsx"], data["sheet_id"])
+    else:
+        halaman_kelola(cs, data["tak_dikenal"], data["performa"])
