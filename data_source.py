@@ -144,22 +144,35 @@ def olah_resi(rekap: pd.DataFrame) -> pd.DataFrame:
 
 
 def jenis_resi(teks) -> str:
-    """'PERDANA' / 'PERRDANA' -> 'perdana', 'GULUNGAN' -> 'gulungan'."""
+    """DMF 1 menulis 'P' / 'G' (kadang 'Perdana' / 'Gulungan', 'G M')."""
     k = norm(teks).replace(" ", "")
-    if k.startswith("perd") or k.startswith("perrd"):
+    if k.startswith("p"):
         return "perdana"
-    if k.startswith("gul"):
+    if k.startswith("g"):
         return "gulungan"
     return ""
 
 
+def _kolom(df: pd.DataFrame, *judul: str, cadangan: int | None = None) -> pd.Series:
+    """Kolom berdasarkan judul (tanpa beda spasi/huruf), atau posisi cadangan."""
+    peta = {norm(c).replace(" ", ""): c for c in df.columns}
+    for j in judul:
+        if j in peta:
+            return df[peta[j]]
+    if cadangan is not None and cadangan < df.shape[1]:
+        return df.iloc[:, cadangan]
+    raise KeyError(f"Kolom {judul[0]} tidak ada di RECAP")
+
+
 def olah_recap(isi_xlsx: bytes) -> pd.DataFrame:
-    """RECAP: Timestamp, TANGGAL, NAMA CS, ..., KET NOMOR, BANK, NOMINAL."""
+    """RECAP DMF 1: A=Timestamp, B=TANGGAL, C=NAMA CS, ..., G=KETNOMOR (P/G),
+    H=BANK, I=nominal (judul kolom kosong)."""
     df = pd.read_excel(io.BytesIO(isi_xlsx), sheet_name="RECAP", header=0, engine="openpyxl")
-    tanggal = pd.to_datetime(df["TANGGAL"], errors="coerce")
-    tanggal = tanggal.fillna(pd.to_datetime(df["Timestamp"], errors="coerce"))
-    jenis = df["KET NOMOR"].map(jenis_resi)
-    nominal = df["NOMINAL"].map(angka)
+    tanggal = pd.to_datetime(_kolom(df, "tanggal", cadangan=1), errors="coerce")
+    tanggal = tanggal.fillna(pd.to_datetime(_kolom(df, "timestamp", cadangan=0), errors="coerce"))
+    jenis = _kolom(df, "ketnomor", cadangan=6).map(jenis_resi)
+    nominal = _kolom(df, "nominal", cadangan=8).map(angka)
+    df["NAMA CS"] = _kolom(df, "namacs", cadangan=2)
     hasil = pd.DataFrame({
         "tanggal": tanggal.dt.normalize(),
         "kunci": df["NAMA CS"].map(norm),
@@ -236,9 +249,14 @@ def siapkan(isi_xlsx: bytes, cs: pd.DataFrame, isi_recap: bytes | None = None):
     Resi & donasi dari RECAP kalau isi_recap ada, kalau tidak dari Rekap Admin.
     Biaya iklan & nomor tidak dari sheet, tapi dari Meta (iklan_meta_rentang).
     """
-    sheet = baca_sheet(isi_xlsx)
-    resi = olah_recap(isi_recap) if isi_recap else olah_resi(sheet["Rekap Admin"])
-    dana = olah_dana(sheet["Dana Iklan"])
+    if isi_xlsx:
+        sheet = baca_sheet(isi_xlsx)
+        resi = olah_recap(isi_recap) if isi_recap else olah_resi(sheet["Rekap Admin"])
+        dana = olah_dana(sheet["Dana Iklan"])
+    else:
+        # DMF 1: hanya spreadsheet donasi (RECAP); modal per CS belum ada.
+        resi = olah_recap(isi_recap)
+        dana = pd.DataFrame(columns=["kunci", "modal_iklan", "akumulasi", "sisa_iklan"])
 
     peta = peta_alias(cs)
     tak_dikenal = set()

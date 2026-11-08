@@ -410,19 +410,22 @@ def muat_data(cs):
     """Ambil & gabungkan semua sumber. Hasil dict; peringatan dikumpulkan."""
     peringatan = []
     sheet_id = rahasia("SHEET_ID")
-    if not sheet_id:
-        # DMF 1: sheet resi & donasi belum ada -> laporan hanya dari Meta.
+    recap_id = rahasia("SHEET_DONASI_ID")
+    if not sheet_id and not recap_id:
+        # Belum ada sheet sama sekali -> laporan hanya dari Meta.
         return {
             "sheet_id": None, "isi_xlsx": None,
             "performa": pd.DataFrame(columns=["tanggal", "nama", *KOLOM_RESI]),
             "dana": pd.DataFrame(columns=["nama", "modal_iklan", "akumulasi", "sisa_iklan"]),
             "tak_dikenal": [], "peringatan": [],
         }
-    isi_xlsx, _ = ambil_sheet(sheet_id)
+    # DMF 1: cukup spreadsheet donasi (RECAP); SHEET_ID (modal per CS) opsional.
+    isi_xlsx = ambil_sheet(sheet_id)[0] if sheet_id else None
 
     isi_recap = None
-    recap_id = rahasia("SHEET_DONASI_ID")
-    if recap_id:
+    if not sheet_id:
+        isi_recap, _ = ambil_sheet(recap_id)
+    elif recap_id:
         try:
             isi_recap, _ = ambil_sheet(recap_id)
         except Exception as e:
@@ -915,8 +918,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if not rahasia("SHEET_ID"):
-    st.info("Resi & donasi belum tersambung (sheet DMF 1 menyusul). Biaya iklan & "
+if not rahasia("SHEET_ID") and not rahasia("SHEET_DONASI_ID"):
+    st.info("Resi & donasi belum tersambung (SHEET_DONASI_ID belum diatur). Biaya iklan & "
             "nomor sudah langsung dari Meta.", icon="ℹ️")
 
 info, tombol = st.columns([3, 1], vertical_alignment="center")
