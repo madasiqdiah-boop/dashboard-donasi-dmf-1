@@ -1,4 +1,4 @@
-"""Dashboard Laporan Iklan Interaksi DMF 2 Kabupaten Serang."""
+"""Dashboard Laporan Iklan Interaksi DMF 1 Kabupaten Serang."""
 import pandas as pd
 import streamlit as st
 
@@ -15,7 +15,7 @@ import laporan_pdf
 load_dotenv()
 
 st.set_page_config(
-    page_title="Dashboard DMF 2",
+    page_title="Dashboard DMF 1",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -410,6 +410,14 @@ def muat_data(cs):
     """Ambil & gabungkan semua sumber. Hasil dict; peringatan dikumpulkan."""
     peringatan = []
     sheet_id = rahasia("SHEET_ID")
+    if not sheet_id:
+        # DMF 1: sheet resi & donasi belum ada -> laporan hanya dari Meta.
+        return {
+            "sheet_id": None, "isi_xlsx": None,
+            "performa": pd.DataFrame(columns=["tanggal", "nama", *KOLOM_RESI]),
+            "dana": pd.DataFrame(columns=["nama", "modal_iklan", "akumulasi", "sisa_iklan"]),
+            "tak_dikenal": [], "peringatan": [],
+        }
     isi_xlsx, _ = ambil_sheet(sheet_id)
 
     isi_recap = None
@@ -597,6 +605,15 @@ def tab_laporan(df, total):
 
 
 def tab_jatah(dana, cs):
+    tampilkan_saldo_akun()
+    if dana.empty:
+        st.info(
+            "Sisa dana di atas langsung dari Meta (akun HKM 3). Modal & sisa iklan "
+            "**per CS** tidak tercatat di Meta, jadi belum ditampilkan sampai sheet "
+            "modal DMF 1 disambungkan.",
+            icon="ℹ️",
+        )
+        return
     aktif = cs[cs["aktif"]][["nama"]]
     df = aktif.merge(dana, on="nama", how="left")
 
@@ -671,7 +688,7 @@ def halaman_laporan(mulai, akhir, performa, dana, cs, status, meta_rentang=None)
     except Exception as e:
         st.caption(f"PDF belum bisa dibuat: {e}")
     else:
-        nama_file = f"Laporan DMF 2 {mulai:%d-%m-%Y}" + ("" if mulai == akhir else f" sd {akhir:%d-%m-%Y}") + ".pdf"
+        nama_file = f"Laporan DMF 1 {mulai:%d-%m-%Y}" + ("" if mulai == akhir else f" sd {akhir:%d-%m-%Y}") + ".pdf"
         st.download_button("📄 Unduh PDF", data=isi_pdf, file_name=nama_file, mime="application/pdf")
 
     t1, t2, t3 = st.tabs(["📋 Laporan", "💰 Jatah & Sisa", "🚀 Rekomendasi"])
@@ -873,7 +890,7 @@ def halaman_login():
     with st.container(key="kotak_login"):
         st.markdown(
             '<div class="judul" style="justify-content:center;margin-top:3rem">'
-            '<span class="ikon">📊</span><span class="teks">Dashboard DMF 2</span></div>'
+            '<span class="ikon">📊</span><span class="teks">Dashboard DMF 1</span></div>'
             '<div class="sub" style="text-align:center">Masuk dulu untuk lihat laporan ✨</div>',
             unsafe_allow_html=True,
         )
@@ -894,13 +911,13 @@ halaman_login()
 
 st.markdown(
     '<div class="judul"><span class="ikon">📊</span>'
-    '<span class="teks">Laporan Iklan DMF 2</span></div>',
+    '<span class="teks">Laporan Iklan DMF 1</span></div>',
     unsafe_allow_html=True,
 )
 
 if not rahasia("SHEET_ID"):
-    st.error("SHEET_ID belum diatur di Secrets.")
-    st.stop()
+    st.info("Resi & donasi belum tersambung (sheet DMF 1 menyusul). Biaya iklan & "
+            "nomor sudah langsung dari Meta.", icon="ℹ️")
 
 info, tombol = st.columns([3, 1], vertical_alignment="center")
 info.markdown(

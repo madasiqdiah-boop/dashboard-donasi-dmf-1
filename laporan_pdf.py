@@ -45,7 +45,7 @@ class _PDF(FPDF):
     def header(self):
         self.set_font("Helvetica", "B", 15)
         self.set_text_color(*PINK)
-        self.cell(0, 8, "Laporan Iklan DMF 2", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 8, "Laporan Iklan DMF 1", new_x="LMARGIN", new_y="NEXT")
         self.set_font("Helvetica", "", 9)
         self.set_text_color(*ABU)
         dibuat = datetime.now(timezone(timedelta(hours=7))).strftime("%d/%m/%Y %H:%M")
