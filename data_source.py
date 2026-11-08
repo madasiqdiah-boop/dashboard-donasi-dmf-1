@@ -270,13 +270,10 @@ META_API = "https://graph.facebook.com/v21.0"
 #   kata=None : semua ad set, dicocokkan ke CS lewat nama ad set / campaign
 #   kata="x"  : hanya ad set yang namanya memuat "x", dicatat atas nama `cs`
 def aturan_meta() -> list[dict]:
-    """Aturan akun iklan. ID akun dibaca dari Secrets / .env:
-    META_AKUN_HKM2 dan META_AKUN_HKM3."""
+    """Aturan akun iklan DMF 1. ID akun dibaca dari Secrets / .env: META_AKUN_HKM3."""
     return [a for a in [
-        # HKM 2: semua ad set, nama ad set = nama CS
-        {"akun": os.environ.get("META_AKUN_HKM2", ""), "kata": None, "cs": None},
-        # HKM 3: hanya ad set "Bu Zakiyah/..." -> Madina (nomor WA lain diabaikan)
-        {"akun": os.environ.get("META_AKUN_HKM3", ""), "kata": "zakiyah", "cs": "Madina"},
+        # HKM 3: semua ad set, nama ad set / campaign = nama CS
+        {"akun": os.environ.get("META_AKUN_HKM3", ""), "kata": None, "cs": None},
     ] if a["akun"]]
 
 

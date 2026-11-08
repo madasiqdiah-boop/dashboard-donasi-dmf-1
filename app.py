@@ -287,11 +287,11 @@ def ambil_status(cs_csv):
     """{nama CS: jumlah iklan aktif}, atau None kalau Meta belum tersambung.
     Diambil ulang tiap 2 jam supaya tidak cepat kena batas permintaan Meta."""
     token = rahasia("META_ACCESS_TOKEN")
-    akun = rahasia("META_AD_ACCOUNT_IDS")
+    akun = rahasia("META_AKUN_HKM3")
     if not token or not akun:
         return None
     cs = pd.read_json(io.StringIO(cs_csv))
-    return ds.status_campaign(token, str(akun).split(","), cs)
+    return ds.status_campaign(token, [str(akun)], cs)
 
 
 @st.cache_resource
@@ -370,8 +370,8 @@ def ambil_meta_rentang(mulai, akhir, cs_json):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def ambil_saldo_akun():
-    """Batas pengeluaran & sisa akun iklan HKM 2 (dari Meta)."""
-    token, akun = rahasia("META_ACCESS_TOKEN"), rahasia("META_AKUN_HKM2")
+    """Batas pengeluaran & sisa akun iklan HKM 3 (dari Meta)."""
+    token, akun = rahasia("META_ACCESS_TOKEN"), rahasia("META_AKUN_HKM3")
     if not token or not akun:
         return None
     return ds.saldo_akun(token, akun)
