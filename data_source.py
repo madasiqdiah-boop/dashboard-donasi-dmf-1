@@ -282,7 +282,9 @@ def cs_untuk_iklan(akun: str, adset: str, campaign: str, peta: dict):
     aturan = next((a for a in aturan_meta() if a["akun"] == akun), None)
     if aturan and aturan["kata"]:
         return aturan["cs"] if aturan["kata"] in norm(adset) else None
-    return cari_cs(adset, peta) or cari_cs(campaign, peta)
+    # Ad set lama yang dimatikan diberi awalan "z" (mis. "zYulia/9292 ... OFF").
+    tanpa_z = adset[1:] if str(adset or "")[:1] in ("z", "Z") else adset
+    return cari_cs(adset, peta) or cari_cs(tanpa_z, peta) or cari_cs(campaign, peta)
 
 
 def iklan_aktif(token: str, akun_iklan: list[str]) -> list[dict]:
