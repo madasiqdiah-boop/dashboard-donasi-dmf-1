@@ -153,6 +153,27 @@ def jenis_resi(teks) -> str:
     return ""
 
 
+def betulkan_tanggal_depan(tanggal: pd.Series) -> pd.Series:
+    """Tanggal yang melewati hari ini dianggap salah ketik bulan (mis. 02/12
+    padahal 02/11): harinya tetap, bulan & tahun ikut baris sebelumnya."""
+    hari_ini = pd.Timestamp(dt.datetime.now(dt.timezone(dt.timedelta(hours=7))).date())
+    salah = tanggal > hari_ini
+    if not salah.any():
+        return tanggal
+    acuan = tanggal.where(~salah).ffill()
+    hasil = tanggal.copy()
+    for i in tanggal.index[salah]:
+        a = acuan[i]
+        if pd.isna(a):
+            continue
+        try:
+            baru = a.replace(day=tanggal[i].day)
+        except ValueError:  # mis. tanggal 31 di bulan 30 hari
+            continue
+        hasil[i] = baru if baru <= hari_ini else a
+    return hasil
+
+
 def _kolom(df: pd.DataFrame, *judul: str, cadangan: int | None = None) -> pd.Series:
     """Kolom berdasarkan judul (tanpa beda spasi/huruf), atau posisi cadangan."""
     peta = {norm(c).replace(" ", ""): c for c in df.columns}
@@ -170,6 +191,7 @@ def olah_recap(isi_xlsx: bytes) -> pd.DataFrame:
     df = pd.read_excel(io.BytesIO(isi_xlsx), sheet_name="RECAP", header=0, engine="openpyxl")
     tanggal = pd.to_datetime(_kolom(df, "tanggal", cadangan=1), errors="coerce")
     tanggal = tanggal.fillna(pd.to_datetime(_kolom(df, "timestamp", cadangan=0), errors="coerce"))
+    tanggal = betulkan_tanggal_depan(tanggal)
     jenis = _kolom(df, "ketnomor", cadangan=6).map(jenis_resi)
     nominal = _kolom(df, "nominal", cadangan=8).map(angka)
     df["NAMA CS"] = _kolom(df, "namacs", cadangan=2)
