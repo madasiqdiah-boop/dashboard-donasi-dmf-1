@@ -73,7 +73,11 @@ h2, h3 { font-family: 'Bricolage Grotesque', sans-serif !important; font-weight:
 [data-testid="stMetricLabel"] p { font-weight: 600; font-size: .8rem; color: var(--teks-pudar); }
 [data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
     font-family: 'Bricolage Grotesque', sans-serif !important;
-    font-weight: 800; font-size: 1.6rem; color: var(--teks);
+    font-weight: 800; color: var(--teks);
+    /* Mengecil mengikuti lebar layar supaya angka ratusan juta tidak terpotong "..." */
+    font-size: clamp(1.05rem, 1.75vw, 1.45rem);
+    letter-spacing: -.02em;
+    white-space: nowrap; overflow: visible !important; text-overflow: clip !important;
 }
 [data-testid="stColumn"]:nth-child(4n+1) [data-testid="stMetric"] { background: #ffe3f0; border-color: #ffb3d6 !important; }
 [data-testid="stColumn"]:nth-child(4n+2) [data-testid="stMetric"] { background: #d8f8ec; border-color: #8fe6c6 !important; }
