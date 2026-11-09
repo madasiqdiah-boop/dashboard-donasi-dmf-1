@@ -133,13 +133,14 @@ def buat_pdf(df, total, mulai, akhir) -> bytes:
             (_bersih(r["nama"]), None), (_angka(r["nomor"]), None), (_rp(r["biaya_iklan"]), None),
             (_rp(r["cpr"]), None), (_angka(r["all_resi"]), None), (_angka(r["perdana"]), None),
             (_angka(r["gulungan"]), None), (_des(r["roas"]), None), (_des(r["closing_rate"]), None),
-            (_rp(r["donasi_perdana"]), None), (_rp(r["donasi_gulungan"]), None), (_rp(r["profit"]), r["profit"]),
+            (_rp(r["donasi_perdana"]), None), (_rp(r["donasi_gulungan"]), None),
+            (_rp(r["total_donasi"]), None), (_rp(r["profit"]), r["profit"]),
         ])
     pdf.tabel(
         ["Nama", "Nomor", "Biaya Iklan", "CPR", "All Resi", "Resi Perdana", "Resi Gulungan",
-         "ROAS", "Closing %", "Donasi Perdana", "Donasi Gulungan", "Profit / Loss"],
-        baris, lebar=(22, 15, 25, 19, 16, 19, 20, 14, 17, 27, 27, 26),
-        rata=("LEFT",) + ("RIGHT",) * 11, warna_kolom=(11,), tebal_terakhir=True,
+         "ROAS", "Closing %", "Donasi Perdana", "Donasi Gulungan", "Total Omzet", "Profit / Loss"],
+        baris, lebar=(22, 13, 24, 17, 14, 18, 19, 12, 15, 25, 25, 25, 25),
+        rata=("LEFT",) + ("RIGHT",) * 12, warna_kolom=(12,), tebal_terakhir=True,
     )
     pdf.set_font("Helvetica", "", 7.5)
     pdf.set_text_color(*ABU)

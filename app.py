@@ -520,7 +520,7 @@ FORMAT_KOLOM = {
     "Sisa Iklan": rupiah, "CPR": rupiah, "Donasi Perdana (Rp)": rupiah,
     "Donasi Gulungan (Rp)": rupiah, "Profit / Loss": rupiah, "ROAS": desimal,
     "Closing Rate (%)": desimal, "Total Topup": rupiah,
-    "Bagi Hasil 25%": rupiah, "Total Donasi": rupiah,
+    "Bagi Hasil 25%": rupiah, "Total Donasi": rupiah, "Total Omzet (Rp)": rupiah,
 }
 KOLOM_TEKS = ("Nama", "Campaign Hari Ini", "Rekomendasi")
 
@@ -596,6 +596,7 @@ def tab_laporan(df, total):
             "closing_rate": "Closing Rate (%)",
             "donasi_perdana": "Donasi Perdana (Rp)",
             "donasi_gulungan": "Donasi Gulungan (Rp)",
+            "total_donasi": "Total Omzet (Rp)",
             "profit": "Profit / Loss",
         },
         warna_kolom=["Profit / Loss"],
